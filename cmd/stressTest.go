@@ -92,16 +92,7 @@ func callEndpoint(url string, ch chan int, wg *sync.WaitGroup, report *Report) {
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		if resp != nil {
-			switch resp.StatusCode {
-			case http.StatusTooManyRequests:
-				report.Total429.Add(1)
-			case http.StatusNotFound:
-				report.Total404.Add(1)
-			case http.StatusInternalServerError:
-				report.Total500.Add(1)
-			default:
-				report.TotalUndefinedError.Add(1)
-			}
+			report.AddResponseResult(*resp)
 		} else {
 			report.TotalUndefinedError.Add(1)
 		}
@@ -110,7 +101,7 @@ func callEndpoint(url string, ch chan int, wg *sync.WaitGroup, report *Report) {
 	}
 	defer resp.Body.Close()
 
-	report.Total200.Add(1)
+	report.AddResponseResult(*resp)
 	<-ch
 }
 
@@ -142,4 +133,19 @@ func (r *Report) Show() {
 	log.Printf("Total 500: %d \n", r.Total500.Load())
 	log.Printf("Total undefined errors: %d \n", r.TotalUndefinedError.Load())
 	log.Printf("Execution time: %.f seconds \n", r.executionEndTime.Sub(r.executionStartTime).Seconds())
+}
+
+func (r *Report) AddResponseResult(resp http.Response) {
+	switch resp.StatusCode {
+	case http.StatusOK:
+		r.Total200.Add(1)
+	case http.StatusTooManyRequests:
+		r.Total429.Add(1)
+	case http.StatusNotFound:
+		r.Total404.Add(1)
+	case http.StatusInternalServerError:
+		r.Total500.Add(1)
+	default:
+		r.TotalUndefinedError.Add(1)
+	}
 }
